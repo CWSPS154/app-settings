@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright CWSPS154. All rights reserved.
  * @auth CWSPS154
@@ -7,65 +8,75 @@
 
 declare(strict_types=1);
 
-namespace CWSPS154\FilamentAppSettings\Commands;
+namespace CWSPS154\AppSettings\Commands;
 
-use Illuminate\Console\Command;
-use Illuminate\Contracts\Filesystem\FileNotFoundException;
-use Illuminate\Filesystem\Filesystem;
+use Illuminate\Console\Concerns\CreatesMatchingTest;
+use Illuminate\Console\GeneratorCommand;
 use Illuminate\Support\Str;
 
-class CreateSettingsTab extends Command
+class CreateSettingsTab extends GeneratorCommand
 {
-    protected $signature = 'make:app-settings-tab {name}';
-    protected $description = 'Generate a app settings tab';
+    use CreatesMatchingTest;
 
-    protected Filesystem $files;
+    /**
+     * The console command name.
+     *
+     * @var string
+     */
+    protected $name = 'make:app-settings-tab';
 
-    public function __construct(Filesystem $files)
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Generate an app settings tab';
+
+    /**
+     * The type of class being generated.
+     *
+     * @var string
+     */
+    protected $type = 'SettingsTab';
+
+    /**
+     * Get the default namespace for the class.
+     *
+     * @param  string  $rootNamespace
+     */
+    protected function getDefaultNamespace($rootNamespace): string
     {
-        parent::__construct();
-        $this->files = $files;
+        return $rootNamespace.'\Filament\Settings\Forms';
     }
 
     /**
-     * @throws FileNotFoundException
+     * Get the stub file for the generator.
      */
-    public function handle(): void
+    protected function getStub(): string
     {
-        $name = $this->argument('name');
-
-        $namespace = 'App\\Filament\\Settings\\Forms';
-        $path = app_path('Filament/Settings/Forms/' . $name . '.php');
-
-        if ($this->files->exists($path)) {
-            $this->error('Class already exists!');
-            return;
-        }
-
-        $this->makeDirectory($path);
-        $content = $this->generateClassContent($namespace, $name);
-        $this->files->put($path, $content);
-        $this->info('Class created successfully.');
-    }
-
-    protected function makeDirectory($path): void
-    {
-        if (!$this->files->isDirectory(dirname($path))) {
-            $this->files->makeDirectory(dirname($path), 0755, true);
-        }
+        return __DIR__.'/stubs/tabClass.stub';
     }
 
     /**
-     * @throws FileNotFoundException
+     * Get the desired class name from the input.
      */
-    protected function generateClassContent($namespace, $name): array|string
+    protected function getNameInput(): string
     {
-        $stub = $this->files->get(__DIR__ . '/../stubs/tabClass.stubs');
-        $state = Str::snake($name);
-        return str_replace(
-            ['{{ namespace }}', '{{ class }}', '{{ state }}'],
-            [$namespace, $name, $state],
-            $stub
-        );
+        return trim($this->argument('name'));
+    }
+
+    /**
+     * Replace the class name for the given stub.
+     *
+     * @param  string  $stub
+     * @param  string  $name
+     */
+    protected function replaceClass($stub, $name): string
+    {
+        $class = str_replace($this->getNamespace($name).'\\', '', $name);
+        $classUpdatedStub = str_replace(['DummyClass', '{{ class }}', '{{class}}'], $class, $stub);
+        $state = Str::snake($this->getNameInput());
+
+        return str_replace(['{{ state }}', '{{state}}'], $state, $classUpdatedStub);
     }
 }
