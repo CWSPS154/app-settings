@@ -1,7 +1,6 @@
 {
-    "name": "cwsps154/filament-app-settings",
+    "name": "cwsps154/app-settings",
     "description": "Package for saving app settings",
-    "version": "0.0.1",
     "keywords": [
         "cwsps154",
         "laravel",
@@ -14,8 +13,8 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "CWSPS154\\FilamentAppSettings\\": "src/",
-            "CWSPS154\\FilamentAppSettings\\Database\\Seeders\\": "database/seeders/"
+            "CWSPS154\\AppSettings\\": "src/",
+            "CWSPS154\\AppSettings\\Database\\Seeders\\": "database/seeders/"
         },
         "files": [
             "src/helper.php"
@@ -27,18 +26,18 @@
             "email": "codewithsps154@gmail.com"
         }
     ],
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
         "php": "^8.2",
         "filament/filament": "^3.2",
-        "ysfkaya/filament-phone-input": "^2.3",
+        "ysfkaya/filament-phone-input": "^3.1",
         "spatie/laravel-package-tools": "^1.15.0"
     },
     "extra": {
         "laravel": {
             "providers": [
-                "CWSPS154\\FilamentAppSettings\\FilamentAppSettingsServiceProvider"
+                "CWSPS154\\AppSettings\\AppSettingsServiceProvider"
             ]
         }
     }
