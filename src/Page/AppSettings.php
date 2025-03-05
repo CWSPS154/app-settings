@@ -1,14 +1,15 @@
 <?php
+
 /*
  * Copyright CWSPS154. All rights reserved.
  * @auth CWSPS154
  * @link  https://github.com/CWSPS154
  */
 
-namespace CWSPS154\FilamentAppSettings\Page;
+namespace CWSPS154\AppSettings\Page;
 
-use CWSPS154\FilamentAppSettings\FilamentAppSettingsServiceProvider;
-use CWSPS154\FilamentAppSettings\Settings\Forms\AppForm;
+use CWSPS154\AppSettings\AppSettingsServiceProvider;
+use CWSPS154\AppSettings\Settings\Forms\AppForm;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\Tabs;
@@ -17,13 +18,11 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 
 class AppSettings extends Page
 {
-    protected static string $view = 'filament-app-settings::filament.pages.app-settings';
+    protected static string $view = 'app-settings::filament.pages.app-settings';
 
     public ?array $settings = [];
 
@@ -37,23 +36,37 @@ class AppSettings extends Page
     {
         return [
             Action::make('Save')
-                ->label(__('filament-app-settings::app-settings.save'))
+                ->label(__('app-settings::app-settings.save'))
                 ->color('primary')
-                ->submit('save')
+                ->submit('save'),
         ];
     }
 
     public static function getTabs(): array
     {
-        $tabs = [
-            AppForm::getTab(),
-        ];
+        $tabs = [];
         $classes = self::getClassesInNamespace('Filament\\Settings\\Forms');
+        $sortableClasses = [];
+
+        if (method_exists(AppForm::class, 'getTab') &&
+            method_exists(AppForm::class, 'getSortOrder')) {
+            $sortableClasses[] = AppForm::class;
+        }
+
         foreach ($classes as $class) {
-            if (method_exists($class, 'getTab')) {
-                $tabs[] = $class::getTab();
+            if (method_exists($class, 'getTab') && method_exists($class, 'getSortOrder')) {
+                $sortableClasses[] = $class;
             }
         }
+
+        usort($sortableClasses, function ($a, $b) {
+            return $a::getSortOrder() <=> $b::getSortOrder();
+        });
+
+        foreach ($sortableClasses as $class) {
+            $tabs[] = $class::getTab();
+        }
+
         return $tabs;
     }
 
@@ -63,7 +76,7 @@ class AppSettings extends Page
             ->schema([
                 Tabs::make('Tabs')
                     ->tabs(self::getTabs())
-                    ->persistTabInQueryString()
+                    ->persistTabInQueryString(),
             ])
             ->statePath('settings');
     }
@@ -74,31 +87,33 @@ class AppSettings extends Page
         foreach ($data as $tab => $values) {
             $this->processValues($tab, $values);
         }
-        $this->successNotification(__('filament-app-settings::app-settings.save.success'));
+        $this->successNotification(__('app-settings::app-settings.save-success'));
         redirect(request()->header('Referer'));
     }
 
     private function processValues($tab, $values, $prefix = ''): void
     {
-        foreach ($values as $field => $value) {
-            $key = $prefix ? "{$prefix}.{$field}" : $field;
+        if (is_array($values)) {
+            foreach ($values as $field => $value) {
+                $key = $prefix ? "{$prefix}.{$field}" : $field;
 
-            if (is_array($value)) {
-                if (array_keys($value) === range(0, count($value) - 1)) {
-                    foreach ($value as $index => $subValue) {
-                        $this->processValues($tab, $subValue, "{$key}.{$index}");
+                if (is_array($value)) {
+                    if (array_keys($value) === range(0, count($value) - 1)) {
+                        foreach ($value as $index => $subValue) {
+                            $this->processValues($tab, $subValue, "{$key}.{$index}");
+                        }
+                    } else {
+                        $this->processValues($tab, $value, $key);
                     }
                 } else {
-                    $this->processValues($tab, $value, $key);
+                    \CWSPS154\AppSettings\Models\AppSettings::updateOrCreate(
+                        ['tab' => $tab, 'key' => $key],
+                        ['value' => $value]
+                    );
+                    $cacheKey = 'settings_data.'.$tab.'.'.$key;
+                    Cache::forget($cacheKey);
+                    Cache::forget('settings_data.all');
                 }
-            } else {
-                \CWSPS154\FilamentAppSettings\Models\AppSettings::updateOrCreate(
-                    ['tab' => $tab, 'key' => $key],
-                    ['value' => $value]
-                );
-                $cacheKey = 'settings_data.' . $tab . '.' . $key;
-                Cache::forget($cacheKey);
-                Cache::forget('settings_data.all');
             }
         }
     }
@@ -111,63 +126,48 @@ class AppSettings extends Page
             ->send();
     }
 
-    public function getLayout(): string
-    {
-        if (config('filament-app-settings.layout')) {
-            return config('filament-app-settings.layout');
-        }
-        return parent::getLayout();
-    }
-
-    public static function getCluster(): ?string
-    {
-        return config('filament-app-settings.cluster');
-    }
-
     public static function getNavigationLabel(): string
     {
-        return __(config('filament-app-settings.navigation.label'));
+        return __('app-settings::app-settings.app.settings');
     }
 
     public function getTitle(): string|Htmlable
     {
-        return __(config('filament-app-settings.navigation.title'));
+        return __('app-settings::app-settings.app.settings');
     }
 
     public static function getNavigationIcon(): string|Htmlable|null
     {
-        return config('filament-app-settings.navigation.icon');
+        return 'heroicon-o-cog-8-tooth';
     }
 
     public static function getNavigationGroup(): ?string
     {
-        return __(config('filament-app-settings.navigation.group'));
+        return __('app-settings::app-settings.system');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return config('filament-app-settings.navigation.sort');
+        return 100;
     }
 
     public static function canAccess(): bool
     {
-        $plugin = Filament::getCurrentPanel()?->getPlugin(FilamentAppSettingsServiceProvider::$name);
+        $plugin = Filament::getCurrentPanel()?->getPlugin(AppSettingsServiceProvider::$name);
         $access = $plugin->getCanAccess();
-        if (!empty($access) && is_array($access) && isset($access['ability'], $access['arguments'])) {
+        if (! empty($access) && is_array($access) && isset($access['ability'], $access['arguments'])) {
             return Gate::allows($access['ability'], $access['arguments']);
         }
+
         return $access;
     }
 
     protected static function getClassesInNamespace(string $namespace): array
     {
-        $path = base_path("app/".str_replace('\\', '/', $namespace));
-        $files = File::allFiles($path);
+        $composerClassMap = require base_path('vendor/composer/autoload_classmap.php');
         $classes = [];
-
-        foreach ($files as $file) {
-            $class = "App\\".$namespace . '\\' . Str::replaceLast('.php', '', $file->getFilename());
-            if (class_exists($class)) {
+        foreach ($composerClassMap as $class => $path) {
+            if (str_contains($class, $namespace)) {
                 $classes[] = $class;
             }
         }
